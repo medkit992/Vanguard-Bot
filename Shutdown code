@@ -1,0 +1,113 @@
+import discord
+from discord.ext import commands, tasks
+import asyncio
+from datetime import datetime, time
+import json
+
+intents = discord.Intents.default()
+intents.message_content = True
+bot = commands.Bot(command_prefix='!', intents=intents)
+
+CHANNELS_CONFIG = {
+    "general": 1334647597029261352,
+    "announcements": 1334883094259302421,
+    "chat": 1334643428344201239,
+    "voice-chat": 1334645264363028560,
+    "music": 1334646221398343750,
+    "gaming": 1334646482099241082,
+    "art": 1334646758160203897,
+    "coding": 1334660960799035434,
+    "resources": 1334870037198012436,
+    "help": 1334648002962260072,
+    "feedback": 1334646956429017198
+}
+
+class ChannelManager(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+        self.locked_status = {}
+        self.manual_lock_active = False
+        self.check_time_lock.start()
+
+    @tasks.loop(minutes=1.0)
+    async def check_time_lock(self):
+        current_time = datetime.now()
+        if current_time.weekday() < 5:  # Monday-Friday
+            lock_time = time(8, 5)      # 8:05 AM
+            unlock_time = time(15, 30)  # 3:30 PM
+            # Only check time-based lock if manual lock isn't active
+            if not self.manual_lock_active:
+                if lock_time <= current_time.time() <= unlock_time:
+                    await self.lock_channels()
+                elif current_time.time() > unlock_time:
+                    await self.unlock_channels()
+
+    async def lock_channels(self):
+        for channel_id in CHANNELS_CONFIG.values():
+            channel = self.bot.get_channel(channel_id)
+            if channel and not self.locked_status.get(channel_id, False):
+                await channel.set_permissions(
+                    channel.guild.default_role,
+                    read_messages=False,
+                    send_messages=False,
+                    add_reactions=False,
+                    connect=False,
+                    speak=False
+                )
+                self.locked_status[channel_id] = True
+                embed = discord.Embed(
+                    title="Channel Locked",
+                    description=f"This channel has been locked due to school hours.",
+                    color=discord.Color.red()
+                )
+                await channel.send(embed=embed)
+
+    async def unlock_channels(self):
+        for channel_id in CHANNELS_CONFIG.values():
+            channel = self.bot.get_channel(channel_id)
+            if channel and self.locked_status.get(channel_id, False):
+                await channel.set_permissions(
+                    channel.guild.default_role,
+                    read_messages=True,
+                    send_messages=True,
+                    add_reactions=True,
+                    connect=True,
+                    speak=True
+                )
+                self.locked_status[channel_id] = False
+                embed = discord.Embed(
+                    title="Channel Unlocked",
+                    description=f"This channel has been unlocked.",
+                    color=discord.Color.green()
+                )
+                await channel.send(embed=embed)
+
+@bot.event
+async def on_ready():
+    global channel_manager
+    channel_manager = ChannelManager(bot)
+    print(f'{bot.user} has connected to Discord!')
+
+@bot.command(name="lockdown")
+async def lockdown(ctx):
+    """Manually locks all channels until !unlock is used"""
+    channel_manager.manual_lock_active = True
+    await channel_manager.lock_channels()
+    await ctx.send("Server has been manually locked until !unlock is used.")
+
+@bot.command(name="unlock")
+async def unlock(ctx):
+    """Unlocks all channels and resumes automatic scheduling"""
+    channel_manager.manual_lock_active = False
+    await channel_manager.unlock_channels()
+    await ctx.send("Server has been unlocked. Automatic scheduling resumed.")
+
+# Add the cog to the bot
+def setup(bot):
+    bot.add_cog(ChannelManager(bot))
+
+# Run the bot with error handling
+try:
+    bot.run("MTMzNDk1MDM4OTA5NDgwOTY1MA.GGVvRs.HXxvNUzsJUj5oKR15iqjHsHW3Eau4-NYnkzLh8")
+except Exception as e:
+    print(f"Error starting bot: {e}")
