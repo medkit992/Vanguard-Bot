@@ -1,0 +1,35 @@
+- name: Set up Node.js
+  uses: actions/setup-node@v3
+  with:
+    node-version: '20.0.0'
+
+- name: Install dependencies
+  run: |
+    npm cache clean --force
+    rm -rf node_modules
+    npm install
+
+- name: Run tests
+  run: |
+    node --version
+    npm --version
+    node index.js
+env:
+  NODE_VERSION: '20.0.0'
+  DISCORD_JS_VERSION: '13.0.0'
+
+- name: Set up Node.js
+  uses: actions/setup-node@v3
+  with:
+    node-version: ${{ env.NODE_VERSION }}
+
+- name: Install dependencies
+  run: |
+    npm cache clean --force
+    rm -rf node_modules
+    npm install discord.js@${{ env.DISCORD_JS_VERSION }}
+  - name: Debug Node.js Version
+  run: echo "Node.js version: $(node --version)"
+
+- name: Debug npm Version
+  run: echo "npm version: $(npm --version)"
